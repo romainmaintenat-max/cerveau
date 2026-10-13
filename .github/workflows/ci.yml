@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q   # includes a real `cerveau-mcp` stdio session (no Qdrant needed)
+      - name: package installs as a wheel and its commands run
+        shell: bash
+        run: |
+          python -m pip install build
+          python -m build --wheel
+          python -m venv wheel-venv
+          if [ -d wheel-venv/Scripts ]; then bin=wheel-venv/Scripts; else bin=wheel-venv/bin; fi
+          $bin/python -m pip install dist/*.whl
+          $bin/cerveau --version
+          $bin/cerveau-mcp --version
+          $bin/python -m cerveau --help > /dev/null
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CERVEAU_IT_QDRANT_URL: http://127.0.0.1:6333
+      CERVEAU_IT_QDRANT_API_KEY: ci-only-throwaway-key
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.18.2
+        ports:
+          - 6333:6333
+        env:
+          QDRANT__SERVICE__API_KEY: ci-only-throwaway-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - name: wait for qdrant
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf -H "api-key: $CERVEAU_IT_QDRANT_API_KEY" http://127.0.0.1:6333/collections && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: docker compose file is valid and refuses an empty key
+        run: |
+          CERVEAU_QDRANT_API_KEY=dummy docker compose config > /dev/null
+          if CERVEAU_QDRANT_API_KEY= docker compose config > /dev/null 2>&1; then
+            echo "docker compose accepted an empty API key"; exit 1
+          fi
+      - run: pytest -m integration -q   # includes a real MCP stdio session

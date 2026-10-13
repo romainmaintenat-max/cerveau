@@ -1,0 +1,23 @@
+# Qdrant for Cerveau.
+# - pinned version (never "latest"),
+# - API key mandatory: compose refuses to start without CERVEAU_QDRANT_API_KEY in .env,
+# - bound to 127.0.0.1 only: not reachable from your network,
+# - REST port only (6333); the gRPC port is not published.
+name: cerveau  # fixed project name: the data volume does not depend on the folder name
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.18.2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${CERVEAU_QDRANT_PORT:-6333}:6333"  # change the port if another Qdrant uses 6333
+    environment:
+      QDRANT__SERVICE__API_KEY: ${CERVEAU_QDRANT_API_KEY:?Set CERVEAU_QDRANT_API_KEY in .env (see .env.example)}
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes:
+      # A named volume, not a folder of your disk: Qdrant documents data loss with
+      # bind mounts on Docker for Windows / WSL.
+      - qdrant_storage:/qdrant/storage
+
+volumes:
+  qdrant_storage:

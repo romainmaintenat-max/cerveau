@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=77"]  # PEP 639 license fields
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cerveau"
+dynamic = ["version"]
+description = "A local, sovereign long-term memory for AI agents: Qdrant + Ollama + MCP."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+    "qdrant-client>=1.18,<2",
+    "requests>=2.32.4,<3",  # 2.32.4: CVE-2024-47081
+    "filelock>=3.20.1,<4",  # 3.20.1: CVE-2025-68146
+    "mcp>=2.2,<3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff==0.16.8"]
+
+[project.scripts]
+cerveau = "cerveau.cli:main"
+cerveau-mcp = "cerveau.mcp_server:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "cerveau.__version__" }  # single source: src/cerveau/__init__.py
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: needs a real Qdrant (set CERVEAU_IT_QDRANT_URL)"]
+addopts = "-m 'not integration'"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]

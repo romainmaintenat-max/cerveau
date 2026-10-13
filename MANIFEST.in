@@ -1,0 +1,3 @@
+include README.md README.fr.md SECURITY.md LICENSE .env.example docker-compose.yml
+recursive-include tests *.py
+recursive-include examples *.md
